@@ -1,0 +1,134 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@3.0.0/dist/tf.min.js"></script>
+    <!-- CSS only -->
+    <link
+      href="https://cdn.jsdelivr.net/npm/bootstrap@5.2.0-beta1/dist/css/bootstrap.min.css"
+      rel="stylesheet"
+      integrity="sha384-0evHe/X+R7YkIZDRvuzKMRqM+OrBnVFBL6DOitfPri4tjfHxaWutUpFmBp4vmVor"
+      crossorigin="anonymous"
+    />
+  </head>
+  <body>
+  
+    <div class="container" style="position: relative">
+      
+
+      <!-- El input para seleccionar los archivos -->
+      <label class="form-label" for="customFile">CARGAR FOTO</label><br />
+      <input
+        type="file"
+        class="form-control form-control-sm"
+        id="seleccionArchivos"
+        multiple
+        accept="image/*"
+      />
+
+      <br/> <br/>
+      <!-- La imagen para previsualizar lo que el usuario selecciona -->
+      <img id="imagenPrevisualizacion" style="border-radius: 10%" width="70%" />
+      <canvas id="detection" style="position: absolute; left: 0"></canvas>
+      <br/>
+      <br/>
+      <div style="text-align: center">
+        <button class="btn btn-success" onclick="funRes()">
+          Detectar Rostro
+        </button>
+        <button class="btn btn-danger" onclick="reload()">Reinciar</button>
+      </div>
+      <br/>
+      <div id="contenido" style="text-align: center"></div>
+
+      <br/><br/>
+    </div>
+
+    <script>
+        //Reiniciar pagina
+        function reload() {
+            window.location.reload();
+        }
+
+        //Mostrar imagen en pantalla
+      const seleccionArchivos = document.querySelector("#seleccionArchivos");
+      const imagenPrevisualizacion = document.querySelector(
+        "#imagenPrevisualizacion"
+      );
+
+      // Escuchar cuando cambie
+      seleccionArchivos.addEventListener("change", () => {
+        //console.log(seleccionArchivos)
+        const archivos = seleccionArchivos.files;
+
+        // Ahora tomamos el primer archivo, el cual vamos a previsualizar
+        const primerArchivo = archivos[0];
+        // Lo convertimos a un objeto de tipo objectURL
+        const objectURL = URL.createObjectURL(primerArchivo);
+        //console.log(objectURL)
+        // Y a la fuente de la imagen le ponemos el objectURL
+        imagenPrevisualizacion.src = objectURL;
+      });
+
+
+      function funRes() {
+
+        document.getElementById("contenido").innerHTML =
+          '<h3 id="carg">Cargando...</h3>';
+        setTimeout(() => {
+          document.getElementById("carg").style.display = "none";
+        }, 4000);
+
+
+
+        tf.ready().then(() => {
+          const modelPath = "/model/tfjs_quant_uint8/model.json";
+          tf.tidy(() => {
+            tf.loadLayersModel(modelPath).then((model) => {
+
+              const petImage = document.getElementById(
+                "imagenPrevisualizacion"
+              );
+
+              const myTensor = tf.browser.fromPixels(petImage);
+
+              // El modelo espera un tensor 3D de valor 0-1 de 256x256
+              const readyfied = tf.image
+                .resizeNearestNeighbor(myTensor, [256, 256], true)
+                .div(255)
+                .reshape([1, 256, 256, 3]);
+
+              const result = model.predict(readyfied);
+              
+              // El modelo regresa arriba a la izquierda y abajo a la derecha
+              result.print();
+
+              // Dibujar cuadro sobre lienzo
+              //Hago que el lienzo de detección tenga el mismo tamaño que la imagen sobre la que se encuentra.
+              const detection = document.getElementById("detection");
+              const imgWidth = petImage.width;
+              const imgHeight = petImage.height;
+              detection.width = imgWidth;
+              detection.height = imgHeight;
+
+              //Tomo el resultado del cuadro delimitador.
+              const box = result.dataSync();
+              const startX = box[0] * imgWidth;
+              const startY = box[1] * imgHeight;
+              const width = (box[2] - box[0]) * imgWidth;
+              const height = (box[3] - box[1]) * imgHeight;
+
+              //Ahora use el contexto 2D del lienzo para dibujar el rectángulo deseado.
+              const ctx = detection.getContext("2d");
+              ctx.strokeStyle = "#7CFC00";
+              ctx.lineWidth = 4;
+
+              //Se escala el punto de inicio X e Y de nuevo a la imagen.
+              ctx.strokeRect(startX, startY, width, height);
+              
+            });
+          });
+        });
+      }
+    </script>
+  </body>
+</html>
